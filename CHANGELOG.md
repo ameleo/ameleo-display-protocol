@@ -1,11 +1,11 @@
 # Changelog
 
-What each release brings.
+This file lists the changes in each release.
 
 ## 0.1.0 — 2026-11-14
 
-The first release: the D-Bus contract between a QEMU `-display dbus` host and a guest agent,
-over one virtio-serial port, with the zbus proxies of each interface.
+The first release. It defines the D-Bus contract between a QEMU `-display dbus` host and a guest
+agent over one virtio-serial port, and provides a zbus proxy for each interface.
 
 - `fr.ameleo.Agent1`: version, channels, session lock state, reset.
 - `fr.ameleo.Agent.Mouse1`: absolute pointer on several heads, buttons, both wheels.
