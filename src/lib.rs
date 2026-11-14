@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! D-Bus contract between the guest agent and the host.
+//! The D-Bus contract between a guest agent and its host.
 //!
 //! # Transport
 //!
-//! A peer-to-peer D-Bus connection running over the virtio-serial port
-//! [`PORT_NAME`]. On the host the port is a `-chardev dbus` that QEMU exposes
-//! as `org.qemu.Display1.Chardev`:
+//! The host and the agent talk over a peer-to-peer D-Bus connection that runs
+//! on the virtio-serial port [`PORT_NAME`]. On the host, the port is a
+//! `-chardev dbus`, which QEMU exposes as `org.qemu.Display1.Chardev`:
 //!
 //! ```text
 //! -device virtio-serial-pci,id=virtserial1
@@ -14,32 +14,33 @@
 //! -device virtserialport,name=fr.ameleo.agent.0,chardev=agent0,bus=virtserial1.0,nr=1
 //! ```
 //!
-//! The host is the D-Bus client (it starts the SASL handshake with `AUTH
-//! ANONYMOUS`), the guest agent is the D-Bus server. A new handshake on the
-//! stream always starts a new session: the guest drops all per-session state
-//! (clipboard ownership, transfers) when it sees one.
+//! The host is the D-Bus client and starts the SASL handshake with
+//! `AUTH ANONYMOUS`; the agent is the D-Bus server. Every new handshake on the
+//! stream starts a new session, and the agent then drops all per-session
+//! state, such as clipboard ownership and transfers in progress.
 //!
 //! # Objects
 //!
-//! * The guest exports [`AGENT_PATH`] with the core interface and one
+//! * The agent exports [`AGENT_PATH`], with the core interface and one
 //!   interface per channel.
-//! * The host exports [`HOST_PATH`] with the interfaces the guest calls back
-//!   (clipboard data requests).
+//! * The host exports [`HOST_PATH`], with the interfaces the agent calls back,
+//!   for example to fetch clipboard data.
 //!
 //! # Conventions
 //!
-//! * Text is UTF-8 with `\n` line endings on the wire, the guest converts.
-//! * Mouse buttons use the QEMU `InputButton` numbering, see [`Button`].
-//! * Interfaces are versioned by name (`...1`), an incompatible change gets a
-//!   new interface, never a changed signature.
+//! * Text is UTF-8 with `\n` line endings on the wire. The agent converts it
+//!   to the guest's conventions.
+//! * Mouse buttons use the QEMU `InputButton` numbering; see [`Button`].
+//! * Interfaces are versioned by name (`...1`). An incompatible change creates
+//!   a new interface; an existing signature never changes.
 
-/// virtio-serial port name (`-device virtserialport,name=...`).
+/// The virtio-serial port name (`-device virtserialport,name=...`).
 pub const PORT_NAME: &str = "fr.ameleo.agent.0";
 
-/// Object path of everything the guest agent exports.
+/// The object path where the agent exports all its interfaces.
 pub const AGENT_PATH: &str = "/fr/ameleo/Agent";
 
-/// Object path of everything the host exports.
+/// The object path where the host exports all its interfaces.
 pub const HOST_PATH: &str = "/fr/ameleo/Host";
 
 pub mod iface {
@@ -58,35 +59,36 @@ pub mod iface {
     pub const HOST_DRIVE: &str = "fr.ameleo.Host.Drive1";
 }
 
-/// Clipboard MIME types understood by the guest agent.
+/// Clipboard MIME types that the agent understands.
 pub mod mime {
     pub const TEXT: &str = "text/plain;charset=utf-8";
     pub const PNG: &str = "image/png";
     pub const BMP: &str = "image/bmp";
-    /// File list, MS-RDPECLIP style. The type name is the Windows / RDP
-    /// format name, the data is a CLIPRDR_FILELIST (MS-RDPECLIP 2.2.5.2.3):
-    /// `cItems: u32 LE` then `cItems` FILEDESCRIPTORW of 592 bytes. Names
-    /// are relative, `\` separated, directories come before their content.
-    /// File data is pulled with `FileClipboard1.FileContents`.
+    /// A file list in the MS-RDPECLIP format. The type name is the Windows
+    /// and RDP clipboard format name. The data is a CLIPRDR_FILELIST
+    /// (MS-RDPECLIP 2.2.5.2.3): a `cItems: u32` in little endian, followed by
+    /// `cItems` FILEDESCRIPTORW structures of 592 bytes each. Names are
+    /// relative and `\` separated, and each directory comes before its
+    /// content. File data is read with `FileClipboard1.FileContents`.
     pub const FILE_LIST: &str = "FileGroupDescriptorW";
 }
 
 /// File clipboard constants (MS-RDPECLIP 2.2.5.3).
 pub mod file_contents {
-    /// `dwFlags`: return the file size, 8 bytes little endian.
+    /// `dwFlags`: return the file size, as 8 bytes in little endian.
     pub const SIZE: u32 = 0x1;
-    /// `dwFlags`: return `requested` bytes from `position`.
+    /// `dwFlags`: return `requested` bytes starting at `position`.
     pub const RANGE: u32 = 0x2;
-    /// Largest `requested` honored in one call.
+    /// The largest `requested` value honored in a single call.
     pub const MAX_RANGE: u32 = 4 * 1024 * 1024;
-    /// Size of one FILEDESCRIPTORW.
+    /// The size of one FILEDESCRIPTORW structure.
     pub const DESCRIPTOR_SIZE: usize = 592;
 }
 
-/// Maximum payload of one `FileTransfer1.Write` call.
+/// The maximum payload of one `FileTransfer1.Write` call.
 pub const FILE_CHUNK_MAX: usize = 256 * 1024;
 
-/// Mouse buttons, same numbering as QEMU `InputButton`.
+/// Mouse buttons, numbered like the QEMU `InputButton` enumeration.
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Button {
@@ -119,26 +121,27 @@ impl TryFrom<u32> for Button {
     }
 }
 
-/// Errors returned by the guest agent.
+/// Errors returned by the agent.
 #[derive(zbus::DBusError, Debug)]
 #[zbus(prefix = "fr.ameleo.Agent.Error")]
 pub enum Error {
     #[zbus(error)]
     ZBus(zbus::Error),
-    /// The user session is locked, the request is refused.
+    /// The user session is locked, so the request is refused.
     SessionLocked(String),
-    /// Not enough disk space, the message carries the free byte count.
+    /// There is not enough disk space. The message holds the number of free
+    /// bytes.
     NotEnoughSpace(String),
     InvalidArgument(String),
     NotFound(String),
-    /// The guest clipboard does not hold the requested data anymore.
+    /// The guest clipboard no longer holds the requested data.
     NoData(String),
     Failed(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Core interface: identity and channel discovery.
+/// The core interface: the agent's identity and the channels it supports.
 #[zbus::proxy(
     interface = "fr.ameleo.Agent1",
     default_service = "fr.ameleo.Agent",
@@ -146,29 +149,30 @@ pub type Result<T> = std::result::Result<T, Error>;
     gen_blocking = false
 )]
 pub trait Agent {
-    /// Guest agent version.
+    /// The agent version.
     #[zbus(property)]
     fn version(&self) -> zbus::Result<String>;
 
-    /// Channel interfaces implemented by this agent.
+    /// The channel interfaces that this agent implements.
     #[zbus(property)]
     fn channels(&self) -> zbus::Result<Vec<String>>;
 
-    /// True while the Windows session is locked (or on the logon screen).
+    /// True while the guest session is locked, or while the logon screen is
+    /// shown.
     #[zbus(property)]
     fn session_locked(&self) -> zbus::Result<bool>;
 
-    /// The remote client went away: drop clipboard ownership, abort
-    /// transfers, remove the client cameras and printers, lock the Windows
-    /// session, without tearing down the D-Bus session. Call it when the
-    /// remote client disconnects.
+    /// Tells the agent that the remote client went away. The agent drops
+    /// clipboard ownership, aborts transfers, removes the client cameras,
+    /// printers and drives, and locks the guest session, but keeps the D-Bus
+    /// session open. Call it when the remote client disconnects.
     fn reset(&self) -> zbus::Result<()>;
 }
 
-/// Absolute pointer, multi-head aware.
+/// An absolute pointer that supports several heads.
 ///
-/// Coordinates are relative to the head (`head` = virtio-gpu scanout index,
-/// the same index as the QEMU console of that head).
+/// Coordinates are relative to the head. `head` is the virtio-gpu scanout
+/// index, which is also the index of the QEMU console for that head.
 #[zbus::proxy(
     interface = "fr.ameleo.Agent.Mouse1",
     default_service = "fr.ameleo.Agent",
@@ -185,16 +189,17 @@ pub trait Mouse {
     #[zbus(no_reply)]
     fn release(&self, button: u32) -> zbus::Result<()>;
 
-    /// High resolution scroll, in Windows wheel units (120 = one notch).
+    /// Scrolls with high resolution, in Windows wheel units (120 is one
+    /// notch).
     #[zbus(no_reply)]
     fn scroll(&self, dx: i32, dy: i32) -> zbus::Result<()>;
 }
 
-/// Clipboard, guest side.
+/// The clipboard, agent side.
 ///
-/// Ownership model (same as QEMU `Display1.Clipboard`): whoever copied last
-/// owns the clipboard and announces the MIME types it can provide. Data is
-/// pulled on demand by the other side.
+/// The ownership model is the same as QEMU's `Display1.Clipboard`: whoever
+/// copied last owns the clipboard and announces the MIME types it can
+/// provide. The other side fetches the data on demand.
 #[zbus::proxy(
     interface = "fr.ameleo.Agent.Clipboard1",
     default_service = "fr.ameleo.Agent",
@@ -202,32 +207,34 @@ pub trait Mouse {
     gen_blocking = false
 )]
 pub trait Clipboard {
-    /// The host now owns the clipboard. Data will be fetched from
-    /// `fr.ameleo.Host.Clipboard1.Request` when a guest app pastes.
+    /// Tells the agent that the host now owns the clipboard. When a guest app
+    /// pastes, the agent fetches the data with
+    /// `fr.ameleo.Host.Clipboard1.Request`.
     fn grab(&self, serial: u32, mimes: Vec<String>) -> zbus::Result<()>;
 
-    /// The host gives up its ownership.
+    /// Tells the agent that the host gives up clipboard ownership.
     fn release(&self) -> zbus::Result<()>;
 
-    /// Fetch guest clipboard data in one of the announced types.
+    /// Fetches the guest clipboard data in one of the announced types.
     fn request(&self, mimes: Vec<String>) -> zbus::Result<(String, Vec<u8>)>;
 
-    /// Largest payload the host accepts, -1 for no limit.
+    /// The largest payload the host accepts, or -1 for no limit.
     #[zbus(property)]
     fn max_size(&self) -> zbus::Result<i32>;
     #[zbus(property)]
     fn set_max_size(&self, value: i32) -> zbus::Result<()>;
 
-    /// The guest clipboard changed.
+    /// Emitted when the guest clipboard changes.
     #[zbus(signal)]
     fn grabbed(&self, serial: u32, mimes: Vec<String>) -> zbus::Result<()>;
 
-    /// The guest clipboard was emptied or holds nothing exportable anymore.
+    /// Emitted when the guest clipboard is emptied or no longer holds
+    /// anything the agent can export.
     #[zbus(signal)]
     fn released(&self) -> zbus::Result<()>;
 }
 
-/// Clipboard, host side, called by the guest on paste.
+/// The clipboard, host side. The agent calls it when a guest app pastes.
 #[zbus::proxy(
     interface = "fr.ameleo.Host.Clipboard1",
     default_service = "fr.ameleo.Host",
@@ -238,17 +245,20 @@ pub trait HostClipboard {
     fn request(&self, serial: u32, mimes: Vec<String>) -> zbus::Result<(String, Vec<u8>)>;
 }
 
-/// File contents for a [`mime::FILE_LIST`] clipboard, the same calls as the
+/// File contents for a [`mime::FILE_LIST`] clipboard. The calls match the
 /// MS-RDPECLIP File Contents Request and Lock/Unlock Clipboard Data PDUs.
 ///
-/// Implemented by the guest (`fr.ameleo.Agent.FileClipboard1`, files copied
-/// in the guest) and by the host (`fr.ameleo.Host.FileClipboard1`, files
-/// copied on the client and pasted in the guest), with the same signature.
+/// Both sides implement the interface with the same signature: the agent as
+/// `fr.ameleo.Agent.FileClipboard1`, for files copied in the guest, and the
+/// host as `fr.ameleo.Host.FileClipboard1`, for files copied on the client
+/// and pasted in the guest.
 ///
-/// * `lindex` is the index in the file list returned for the grab.
+/// * `lindex` is the index of the file in the file list returned for the
+///   grab.
 /// * `flags` is [`file_contents::SIZE`] or [`file_contents::RANGE`].
-/// * With `has_clip_data_id`, the request is about the clipboard content
-///   frozen by `LockClipData(clip_data_id)`, otherwise the current one.
+/// * When `has_clip_data_id` is true, the request refers to the clipboard
+///   content frozen by `LockClipData(clip_data_id)`; otherwise it refers to
+///   the current content.
 #[zbus::proxy(
     interface = "fr.ameleo.Agent.FileClipboard1",
     default_service = "fr.ameleo.Agent",
@@ -256,9 +266,9 @@ pub trait HostClipboard {
     gen_blocking = false
 )]
 pub trait FileClipboard {
-    /// Freezes the current clipboard content under `clip_data_id`: file
-    /// contents stay readable after the clipboard changes, until unlocked.
-    /// May come before the file list was requested.
+    /// Freezes the current clipboard content under `clip_data_id`: its file
+    /// contents stay readable after the clipboard changes, until the content
+    /// is unlocked. This call may come before the file list is requested.
     fn lock_clip_data(&self, clip_data_id: u32) -> zbus::Result<()>;
     fn unlock_clip_data(&self, clip_data_id: u32) -> zbus::Result<()>;
     fn file_contents(
@@ -272,8 +282,8 @@ pub trait FileClipboard {
     ) -> zbus::Result<Vec<u8>>;
 }
 
-/// Host side of [`FileClipboard`], called by the guest when an app pastes
-/// files the host announced.
+/// The host side of [`FileClipboardProxy`]. The agent calls it when a guest app
+/// pastes files that the host announced.
 #[zbus::proxy(
     interface = "fr.ameleo.Host.FileClipboard1",
     default_service = "fr.ameleo.Host",
@@ -294,42 +304,44 @@ pub trait HostFileClipboard {
     ) -> zbus::Result<Vec<u8>>;
 }
 
-/// Camera limits of the guest.
+/// Camera limits of the agent.
 pub mod camera {
-    /// Client cameras shown at the same time.
+    /// The number of client cameras that can be shown at the same time.
     pub const MAX_CAMERAS: u32 = 4;
-    /// Largest frame size, per camera format.
+    /// The largest frame size of a camera format.
     pub const MAX_WIDTH: u32 = 3840;
     pub const MAX_HEIGHT: u32 = 2160;
 }
 
-/// Client webcams (MS-RDPECAM on the RDP side), shown in the guest as
-/// Windows 11 virtual cameras.
+/// Client webcams (MS-RDPECAM on the RDP side), shown as cameras in the guest.
 ///
 /// Flow:
-/// 1. The client announces a camera: the host calls `AddCamera` with the
-///    H.264 formats the camera offers. The camera shows up in the guest,
-///    nothing streams yet.
-/// 2. An app opens it: the guest emits `StreamRequested(id, format)`, the
-///    host starts that stream on the client (Start Streams) and pushes each
-///    H.264 access unit with `PushFrame`.
-/// 3. The app closes it: `StreamStopped(id)`, the host stops the stream.
-/// 4. `KeyFrameNeeded(id)`: the guest decoder lost track (it started on a
-///    non-IDR frame or a frame was lost). The host restarts the client
-///    stream to get an IDR.
-/// 5. The camera goes away on the client: `RemoveCamera(id)`.
+/// 1. The client announces a camera, and the host calls `AddCamera` with the
+///    H.264 formats that the camera offers. The camera appears in the guest,
+///    but nothing streams yet.
+/// 2. When an app opens the camera, the agent emits
+///    `StreamRequested(id, format)`. The host starts that stream on the
+///    client (Start Streams) and pushes each H.264 access unit with
+///    `PushFrame`.
+/// 3. When the app closes the camera, the agent emits `StreamStopped(id)` and
+///    the host stops the stream.
+/// 4. The agent emits `KeyFrameNeeded(id)` when its decoder lost track, for
+///    example because the stream started on a non-IDR frame or a frame was
+///    lost. The host restarts the client stream to get an IDR frame.
+/// 5. When the camera goes away on the client, the host calls
+///    `RemoveCamera(id)`.
 ///
-/// Controls (brightness, focus... MS-RDPECAM version 2): after `AddCamera`,
-/// the host gives what the client offers (Property List Response) and the
-/// current values (Property Value Response) with `SetControls`. An app
-/// changing one emits `ControlRequested`: the host sends the Set Property
-/// Value Request, then reports the value the camera took with
-/// `ControlValue` (on an Error Response, the value it still has). Sets,
-/// property ids, capabilities and modes are MS-RDPECAM's, see
-/// [`camera_control`].
+/// Controls such as brightness and focus (MS-RDPECAM version 2): after
+/// `AddCamera`, the host calls `SetControls` with what the client offers
+/// (Property List Response) and the current values (Property Value
+/// Response). When an app changes a control, the agent emits
+/// `ControlRequested`; the host sends the Set Property Value Request, then
+/// reports the value the camera took with `ControlValue` (or, on an Error
+/// Response, the value the camera kept). Sets, property ids, capabilities
+/// and modes use the MS-RDPECAM numbering; see [`camera_control`].
 ///
-/// Ids are chosen by the host. Formats are indexes into the list given to
-/// `AddCamera`; sizes are even and at most [`camera::MAX_WIDTH`] x
+/// The host chooses the camera ids. Formats are indexes into the list given
+/// to `AddCamera`. Frame sizes are even, and at most [`camera::MAX_WIDTH`] x
 /// [`camera::MAX_HEIGHT`].
 #[zbus::proxy(
     interface = "fr.ameleo.Agent.Camera1",
@@ -338,8 +350,9 @@ pub mod camera {
     gen_blocking = false
 )]
 pub trait Camera {
-    /// `formats`: `(width, height, fps numerator, fps denominator)`, H.264.
-    /// At most [`camera::MAX_CAMERAS`] cameras at once.
+    /// `formats` lists the H.264 formats as
+    /// `(width, height, fps numerator, fps denominator)`. The agent shows at
+    /// most [`camera::MAX_CAMERAS`] cameras at once.
     fn add_camera(
         &self,
         id: u32,
@@ -349,30 +362,33 @@ pub trait Camera {
 
     fn remove_camera(&self, id: u32) -> zbus::Result<()>;
 
-    /// One H.264 access unit (Annex B, start codes, SPS/PPS in band before
-    /// each IDR), in the format of the last `StreamRequested`.
-    /// `timestamp_us`: capture time on the client, microseconds.
+    /// Pushes one H.264 access unit in Annex B format, with start codes and
+    /// with the SPS and PPS in band before each IDR frame, in the format of
+    /// the last `StreamRequested`. `timestamp_us` is the capture time on the
+    /// client, in microseconds.
     #[zbus(no_reply)]
     fn push_frame(&self, id: u32, timestamp_us: u64, data: Vec<u8>) -> zbus::Result<()>;
 
-    /// An app opened camera `id` with format index `format`.
+    /// Emitted when an app opens camera `id` with format index `format`.
     #[zbus(signal)]
     fn stream_requested(&self, id: u32, format: u32) -> zbus::Result<()>;
 
-    /// No app uses camera `id` anymore.
+    /// Emitted when no app uses camera `id` anymore.
     #[zbus(signal)]
     fn stream_stopped(&self, id: u32) -> zbus::Result<()>;
 
-    /// The guest needs an IDR frame to decode camera `id` again.
+    /// Emitted when the agent needs an IDR frame to decode camera `id` again.
     #[zbus(signal)]
     fn key_frame_needed(&self, id: u32) -> zbus::Result<()>;
 
-    /// The controls of camera `id`, replacing any given before: at most
-    /// [`camera_control::MAX_CONTROLS`] [`camera_control::Control`].
+    /// Sets the controls of camera `id`, replacing any controls set before:
+    /// at most [`camera_control::MAX_CONTROLS`] [`camera_control::Control`]
+    /// values.
     fn set_controls(&self, id: u32, controls: Vec<camera_control::Control>) -> zbus::Result<()>;
 
-    /// What the client says a control of camera `id` is now (after a Set
-    /// Property Value Request, or any time).
+    /// Reports the current value of a control of camera `id`, as the client
+    /// gave it. The host calls it after a Set Property Value Request, and may
+    /// call it at any other time.
     fn control_value(
         &self,
         id: u32,
@@ -382,8 +398,8 @@ pub trait Camera {
         value: i32,
     ) -> zbus::Result<()>;
 
-    /// An app changed a control: send the client a Set Property Value
-    /// Request. `value` means nothing when `mode` is
+    /// Emitted when an app changes a control. The host sends the client a
+    /// Set Property Value Request. `value` is meaningless when `mode` is
     /// [`camera_control::AUTO`].
     #[zbus(signal)]
     fn control_requested(
@@ -396,21 +412,21 @@ pub trait Camera {
     ) -> zbus::Result<()>;
 }
 
-/// Camera controls, numbered as in MS-RDPECAM (PROPERTY_DESCRIPTION,
-/// PROPERTY_VALUE): the host passes the client's values through.
+/// Camera controls, numbered as in MS-RDPECAM (PROPERTY_DESCRIPTION and
+/// PROPERTY_VALUE). The host passes the client's values through unchanged.
 pub mod camera_control {
-    /// `(set, property, capabilities, min, max, step, default, mode,
-    /// value)`: a PROPERTY_DESCRIPTION, then the PROPERTY_VALUE the client
+    /// `(set, property, capabilities, min, max, step, default, mode, value)`:
+    /// a PROPERTY_DESCRIPTION, followed by the PROPERTY_VALUE that the client
     /// gave for it.
     pub type Control = (u8, u8, u8, i32, i32, i32, i32, u8, i32);
 
     pub const MAX_CONTROLS: usize = 16;
 
-    /// Sets.
+    /// Property sets.
     pub const CAMERA_CONTROL: u8 = 0x01;
     pub const VIDEO_PROC_AMP: u8 = 0x02;
 
-    /// CameraControl properties.
+    /// Properties of the CameraControl set.
     pub const EXPOSURE: u8 = 0x01;
     pub const FOCUS: u8 = 0x02;
     pub const PAN: u8 = 0x03;
@@ -418,54 +434,55 @@ pub mod camera_control {
     pub const TILT: u8 = 0x05;
     pub const ZOOM: u8 = 0x06;
 
-    /// VideoProcAmp properties.
+    /// Properties of the VideoProcAmp set.
     pub const BACKLIGHT_COMPENSATION: u8 = 0x01;
     pub const BRIGHTNESS: u8 = 0x02;
     pub const CONTRAST: u8 = 0x03;
     pub const HUE: u8 = 0x04;
     pub const WHITE_BALANCE: u8 = 0x05;
 
-    /// Capabilities flags and modes.
+    /// Capability flags and modes.
     pub const MANUAL: u8 = 0x01;
     pub const AUTO: u8 = 0x02;
 }
 
-/// Printer limits of the guest.
+/// Printer limits of the agent.
 pub mod printer {
-    /// Client printers shown at the same time.
+    /// The number of client printers that can be shown at the same time.
     pub const MAX_PRINTERS: u32 = 32;
-    /// Largest `AddPrinter` PrintCapabilities or PrintTicket, in bytes.
+    /// The largest PrintCapabilities or PrintTicket accepted by
+    /// `AddPrinter`, in bytes.
     pub const MAX_XML: usize = 4 * 1024 * 1024;
-    /// Largest job document chunk in one `WriteJob` call.
+    /// The largest job document chunk in one `WriteJob` call.
     pub const CHUNK_MAX: usize = 256 * 1024;
 }
 
-/// Client printers (RDP printer redirection, Easy Print), shown in the
-/// guest as Windows printers.
+/// Client printers (RDP printer redirection with Easy Print), shown as
+/// printers in the guest.
 ///
-/// Each client printer is a virtual printer of the guest's Print Support
-/// App, on the inbox Microsoft Virtual Print Class Driver: no third-party
-/// driver, it works under Windows protected print. The app hands each job
-/// to the agent as OpenXPS.
+/// Jobs reach the host as OpenXPS documents, which the host writes to the
+/// client's Easy Print printer.
 ///
-/// The client driver's options show in the guest: the printer's
-/// capabilities are made out of the PrintCapabilities the host gives in
-/// `AddPrinter`, and its printing preferences open the client driver's own
-/// dialog on the client ([`HostPrinter::document_properties`]). The settings
-/// the user chooses there stay with the guest printer and come back with
-/// every job.
+/// The client driver's options are available in the guest: the agent builds
+/// the printer's capabilities from the PrintCapabilities that the host gives
+/// in `AddPrinter`, and the printing preferences open the client driver's
+/// own dialog on the client ([`HostPrinterProxy::document_properties`]). The
+/// settings the user chooses there stay with the guest printer and are sent
+/// with every job.
 ///
 /// Flow:
-/// 1. The client announces a printer: the host calls `AddPrinter`. The call
-///    returns at once; the guest installs the printer for the logged on
-///    user (at once, or when the user logs on).
-/// 2. Apps print: `BeginJob`, `WriteJob`..., `EndJob` on [`HostPrinter`].
-/// 3. `RemovePrinter(id)` when the client printer goes away: deleted at
-///    once. At the end of the D-Bus session (or `Agent1.Reset`) the printers
-///    are kept 60 s, unusable, and reused by a printer of the same name of
-///    the next session (the user's settings with them), then deleted.
+/// 1. The client announces a printer, and the host calls `AddPrinter`. The
+///    call returns at once; the agent installs the printer for the logged on
+///    user, either immediately or when the user logs on.
+/// 2. When apps print, the agent calls `BeginJob`, `WriteJob`... and `EndJob`
+///    on [`HostPrinterProxy`].
+/// 3. When the client printer goes away, the host calls `RemovePrinter(id)`
+///    and the agent deletes the printer at once. When the D-Bus session ends
+///    (or on `Agent1.Reset`), the agent keeps the printers for 60 s, unusable.
+///    A printer with the same name in the next session reuses its guest
+///    printer, along with the user's settings; the others are then deleted.
 ///
-/// Ids are chosen by the host.
+/// The host chooses the printer ids.
 #[zbus::proxy(
     interface = "fr.ameleo.Agent.Printer1",
     default_service = "fr.ameleo.Agent",
@@ -473,16 +490,17 @@ pub mod printer {
     gen_blocking = false
 )]
 pub trait Printer {
-    /// `name`: shown in the guest. `is_default`: the client's default
-    /// printer, made the default printer of the guest user.
+    /// `name` is the name shown in the guest. When `is_default` is true, the
+    /// printer is the client's default printer, and the agent makes it the
+    /// guest user's default printer.
     ///
-    /// `capabilities`: the client driver's PrintCapabilities XML (MS-RDPEXPS
-    /// `GetPrintCapabilities`). `default_ticket`: its default PrintTicket
-    /// (the ticket of its default DEVMODE): the guest printer's defaults;
-    /// the capabilities do not say which option is the default, without it
-    /// the guest guesses (one-sided, portrait...). Either may be empty (no
-    /// capabilities: the guest printer has generic options only). At most
-    /// [`printer::MAX_XML`] bytes each.
+    /// `capabilities` is the client driver's PrintCapabilities XML (MS-RDPEXPS
+    /// `GetPrintCapabilities`). `default_ticket` is the driver's default
+    /// PrintTicket (the ticket of its default DEVMODE), which gives the guest
+    /// printer its defaults: the capabilities do not say which option is the
+    /// default, so without it the agent guesses (one-sided, portrait, and so
+    /// on). Either may be empty; without capabilities, the guest printer only
+    /// has generic options. Each is at most [`printer::MAX_XML`] bytes.
     fn add_printer(
         &self,
         id: u32,
@@ -494,8 +512,8 @@ pub trait Printer {
 
     fn remove_printer(&self, id: u32) -> zbus::Result<()>;
 
-    /// Answer to [`HostPrinter::document_properties`]: the PrintTicket the
-    /// user chose in the client driver dialog, or `cancelled`.
+    /// Answers [`HostPrinterProxy::document_properties`] with the PrintTicket the
+    /// user chose in the client driver's dialog, or with `cancelled` set.
     fn document_properties_done(
         &self,
         request_id: u32,
@@ -504,18 +522,20 @@ pub trait Printer {
     ) -> zbus::Result<()>;
 }
 
-/// Host side of [`Printer`]: the client printers.
+/// The host side of [`PrinterProxy`]: the client printers.
 ///
-/// A job document comes as `BeginJob`, `WriteJob` for each chunk in order
-/// (at most [`printer::CHUNK_MAX`] bytes; flow control: the next chunk
-/// follows the reply), then `EndJob` once the guest has it all. `AbortJob`
-/// drops a job (cancelled in the guest, connection lost). Job ids are
-/// chosen by the guest, unique for the agent's lifetime.
+/// The agent sends a job document with `BeginJob`, then `WriteJob` for each
+/// chunk in order (at most [`printer::CHUNK_MAX`] bytes each), then `EndJob`
+/// once the host has received everything. The replies provide flow control:
+/// the agent sends the next chunk after the previous call returns.
+/// `AbortJob` drops a job, for example when it is cancelled in the guest or
+/// the connection is lost. The agent chooses the job ids, which are unique
+/// for the agent's lifetime.
 ///
-/// PrintTickets are XML (Print Schema) for the client driver: the standard
-/// settings (`psk:`) and the client driver's own ones, in its namespaces
-/// (their prefixes may differ from the client's: the namespace URIs are what
-/// counts).
+/// PrintTickets are Print Schema XML for the client driver. They hold the
+/// standard settings (`psk:`) and the client driver's own settings in its
+/// namespaces. Their prefixes may differ from the client's: only the
+/// namespace URIs matter.
 #[zbus::proxy(
     interface = "fr.ameleo.Host.Printer1",
     default_service = "fr.ameleo.Host",
@@ -523,15 +543,16 @@ pub trait Printer {
     gen_blocking = false
 )]
 pub trait HostPrinter {
-    /// `document_format`: the job's MIME type, `application/oxps`: write the
-    /// document to the client's Easy Print printer as it is.
-    /// `job_name`, `user_name`: as the guest app and user gave them, may be
-    /// empty. `print_ticket`: the settings to print with, for the client
-    /// driver: the user's, from the guest dialogs and the client driver
-    /// dialog, among them its `PageDevmodeSnapshot` (in the driver's
-    /// `oemdriverpt` namespace: its whole DEVMODE, base64) when it has one.
-    /// The document already carries it as its job PrintTicket
-    /// (`Metadata/Job_PT.xml`); given here for information.
+    /// `document_format` is the job's MIME type, `application/oxps`: the host
+    /// writes the document to the client's Easy Print printer unchanged.
+    /// `job_name` and `user_name` are as the guest app and user gave them,
+    /// and may be empty. `print_ticket` holds the settings to print with, for
+    /// the client driver: the user's choices from the guest dialogs and the
+    /// client driver's dialog, including the driver's `PageDevmodeSnapshot`
+    /// (its whole DEVMODE in base64, in the driver's `oemdriverpt` namespace)
+    /// when it has one. The document already carries the same ticket as its
+    /// job PrintTicket (`Metadata/Job_PT.xml`); it is given here for
+    /// information.
     fn begin_job(
         &self,
         printer_id: u32,
@@ -542,19 +563,20 @@ pub trait HostPrinter {
         print_ticket: &str,
     ) -> zbus::Result<()>;
     fn write_job(&self, job_id: u32, data: Vec<u8>) -> zbus::Result<()>;
-    /// The whole document was written; returns once the host took it.
+    /// Ends a job once the whole document is written. Returns when the host
+    /// has taken the document.
     fn end_job(&self, job_id: u32) -> zbus::Result<()>;
     fn abort_job(&self, job_id: u32) -> zbus::Result<()>;
 
     /// Shows the client driver's own document properties dialog on the
-    /// client (MS-RDPEXPS `ASYNC_DOC_PROPS_REQ`), starting from
-    /// `print_ticket` (the guest printer's current settings, as in
-    /// [`HostPrinter::begin_job`]: the client driver's ticket the user chose
-    /// last, its `PageDevmodeSnapshot` being the DEVMODE to start the dialog
-    /// from). Returns at once; the host calls
-    /// [`Printer::document_properties_done`] with `request_id` and the
-    /// client driver's PrintTicket when the user closes the dialog, however
-    /// long it stays open. The guest keeps it: the next jobs carry it.
+    /// client (MS-RDPEXPS `ASYNC_DOC_PROPS_REQ`). The dialog starts from
+    /// `print_ticket`, the guest printer's current settings as in
+    /// [`HostPrinterProxy::begin_job`]: the client driver's ticket that the user
+    /// chose last, whose `PageDevmodeSnapshot` is the DEVMODE to start from.
+    /// The call returns at once. When the user closes the dialog, however
+    /// long it stays open, the host calls [`PrinterProxy::document_properties_done`]
+    /// with `request_id` and the client driver's PrintTicket. The agent keeps
+    /// that ticket and sends it with the next jobs.
     fn document_properties(
         &self,
         printer_id: u32,
@@ -565,30 +587,31 @@ pub trait HostPrinter {
 
 /// Drive limits and wire types.
 pub mod drive {
-    /// Client drives shown at the same time.
+    /// The number of client drives that can be shown at the same time.
     pub const MAX_DRIVES: u32 = 24;
-    /// Largest `Read` length or `Write` data, in bytes.
+    /// The largest `Read` length or `Write` payload, in bytes.
     pub const IO_MAX: u32 = 1024 * 1024;
 
-    /// `information` of [`super::HostDrive::open`]: what the client did, the
-    /// MS-RDPEFS `DR_CREATE_RSP` value. That spec has no `CREATED`: it
-    /// says `SUPERSEDED` for "a new file was created" (and when the field
-    /// is left out). `CREATED` is the NT `IO_STATUS_BLOCK` value some
-    /// clients send; both mean created, see [`created`].
+    /// The `information` value returned by [`super::HostDriveProxy::open`]: what
+    /// the client did, as the MS-RDPEFS `DR_CREATE_RSP` value. That
+    /// specification has no `CREATED` value: it uses `SUPERSEDED` for "a new
+    /// file was created", and also when the field is omitted. `CREATED` is
+    /// the NT `IO_STATUS_BLOCK` value that some clients send. Both mean that
+    /// the file was created; see [`information::created`].
     pub mod information {
         pub const SUPERSEDED: u32 = 0;
         pub const OPENED: u32 = 1;
         pub const CREATED: u32 = 2;
         pub const OVERWRITTEN: u32 = 3;
 
-        /// The client created the file.
+        /// Returns true if the client created the file.
         pub fn created(information: u32) -> bool {
             information == SUPERSEDED || information == CREATED
         }
     }
 
-    /// `action` of a [`super::Drive::changed`] change, the
-    /// `FILE_NOTIFY_INFORMATION` values.
+    /// The `action` of a change passed to [`super::DriveProxy::changed`], using
+    /// the `FILE_NOTIFY_INFORMATION` values.
     pub mod action {
         pub const ADDED: u32 = 1;
         pub const REMOVED: u32 = 2;
@@ -598,41 +621,39 @@ pub mod drive {
     }
 
     /// A file or directory: `(name, attributes, size, creation_time,
-    /// last_access_time, last_write_time, change_time)`. `name` is the
-    /// entry's own name in a listing, the path's last component otherwise;
-    /// `attributes` the `FILE_ATTRIBUTE_*` flags (`0x10` directory); times
-    /// are FILETIME (100 ns since 1601, UTC), 0 when unknown. D-Bus
-    /// signature `(suttttt)`.
+    /// last_access_time, last_write_time, change_time)`. In a listing,
+    /// `name` is the entry's own name; otherwise it is the last component of
+    /// the path. `attributes` holds the `FILE_ATTRIBUTE_*` flags (`0x10` for
+    /// a directory). Times are FILETIME values (100 ns units since 1601,
+    /// UTC), or 0 when unknown. The D-Bus signature is `(suttttt)`.
     pub type Entry = (String, u32, u64, u64, u64, u64, u64);
 
-    /// A change on the client drive: `(action, path)`, see [`action`].
+    /// A change on the client drive: `(action, path)`; see [`action`].
     pub type Change = (u32, String);
 }
 
-/// Client drives (RDP drive redirection, MS-RDPEFS), shown in the guest as
-/// drive letters.
+/// Client drives (RDP drive redirection, MS-RDPEFS), shown as drives in the
+/// guest.
 ///
-/// The guest mounts each drive with Dokany (a user mode file system, LGPL,
-/// installed separately): every file operation of a guest app goes to the
-/// client as it happens ([`HostDrive`]), like on a Windows RDP server. No
-/// copy of the client's files stays in the guest. Without Dokany installed,
-/// `AddDrive` fails and the guest has no drives.
+/// Every file operation of a guest app goes to the client as it happens,
+/// through [`HostDriveProxy`], as on a Windows RDP server. The guest keeps no copy
+/// of the client's files.
 ///
 /// Flow:
-/// 1. The client announces a drive (`on_device_announce`): the host calls
-///    `AddDrive`. The drive is mounted on a free letter (from `Z:` down) for
-///    the logged on user only: other sessions get access denied.
-/// 2. Guest apps use it through [`HostDrive`].
-/// 3. Changes made on the client (`NotifyChangeDirectory` on the drive
-///    root, watching the tree): the host calls `Changed`, the guest tells
-///    Explorer.
-/// 4. `RemoveDrive(id)` when the client drive goes away. At the end of the
-///    D-Bus session (or `Agent1.Reset`) all drives are unmounted.
+/// 1. The client announces a drive, and the host calls `AddDrive`. The agent
+///    mounts the drive for the logged on user only.
+/// 2. Guest apps use the drive through [`HostDriveProxy`].
+/// 3. When files change on the client (the host watches the tree with
+///    `NotifyChangeDirectory` on the drive root), the host calls `Changed`
+///    so that the agent can refresh the guest's views.
+/// 4. When the client drive goes away, the host calls `RemoveDrive(id)`.
+///    When the D-Bus session ends (or on `Agent1.Reset`), the agent unmounts
+///    all drives.
 ///
-/// Ids are chosen by the host (the RDPDR `DeviceId` fits).
+/// The host chooses the drive ids; the RDPDR `DeviceId` is a good fit.
 ///
 /// Paths are relative to the drive root, `\` separated, without a leading
-/// `\`; `""` is the root.
+/// `\`. The empty path `""` is the root.
 #[zbus::proxy(
     interface = "fr.ameleo.Agent.Drive1",
     default_service = "fr.ameleo.Agent",
@@ -640,49 +661,56 @@ pub mod drive {
     gen_blocking = false
 )]
 pub trait Drive {
-    /// `name`: the client's name of the drive (RDPDR `PreferredDosName`,
-    /// `C`). `label`: the volume label shown in the guest (`C sur
-    /// PC-CLIENT`). Returns the guest drive letter (`Z`).
+    /// `name` is the client's name for the drive (the RDPDR
+    /// `PreferredDosName`, such as `C`). `label` is the volume label shown in
+    /// the guest (such as `C on PC-CLIENT`). Returns the guest drive letter
+    /// (such as `Z`).
     fn add_drive(&self, id: u32, name: &str, label: &str) -> zbus::Result<String>;
 
     fn remove_drive(&self, id: u32) -> zbus::Result<()>;
 
-    /// Changes made on the client drive, in order, as the client reported
-    /// them (`FILE_NOTIFY_INFORMATION`, paths relative to the drive root).
-    /// A client that cannot watch the tree sends nothing: Explorer then
-    /// shows the client's changes when it lists a directory again.
+    /// Reports changes made on the client drive, in order, as the client
+    /// reported them (`FILE_NOTIFY_INFORMATION`, with paths relative to the
+    /// drive root). A client that cannot watch the tree sends nothing; the
+    /// guest then sees the client's changes the next time it lists a
+    /// directory.
     fn changed(&self, id: u32, changes: Vec<drive::Change>) -> zbus::Result<()>;
 }
 
-/// Host side of [`Drive`]: the client drive's files, one RDPDR request each
-/// (MS-RDPEFS, `ironrdp-rdpdr`'s server side).
+/// The host side of [`DriveProxy`]: the files of the client drive, with one RDPDR
+/// request per call (MS-RDPEFS).
 ///
-/// Every method returns the client's `NTSTATUS` first (`0` success,
-/// `0xC0000034` not found, `0xC0000022` access denied, `0xC0000043` sharing
-/// violation...), as the client answered: the guest gives it to the app. A
-/// D-Bus error means the host could not ask the client at all (no such
-/// drive, client gone).
+/// Every method returns the client's `NTSTATUS` first, exactly as the client
+/// answered (`0` for success, `0xC0000034` for not found, `0xC0000022` for
+/// access denied, `0xC0000043` for a sharing violation, and so on); the agent
+/// passes it on to the app. A D-Bus error means that the host could not ask
+/// the client at all, for example because the drive does not exist or the
+/// client is gone.
 ///
-/// Calls may be pending at the same time, on the same drive and the same
-/// file too: the host sends each to the client at once and answers when the
-/// client did.
+/// Several calls may be pending at the same time, on the same drive and even
+/// on the same file: the host sends each one to the client at once, and
+/// answers when the client has answered.
 ///
-/// * `Open`: `IRP_MJ_CREATE` with the guest's own NT parameters, as they
-///   are; `Close`: `IRP_MJ_CLOSE`.
-/// * `Read` / `Write` / `Flush`: `IRP_MJ_READ` / `WRITE` / `FLUSH_BUFFERS`.
-/// * `Query`: `IRP_MJ_QUERY_INFORMATION`, `FileBasicInformation` and
+/// * `Open` sends `IRP_MJ_CREATE` with the guest's own NT parameters,
+///   unchanged; `Close` sends `IRP_MJ_CLOSE`.
+/// * `Read`, `Write` and `Flush` send `IRP_MJ_READ`, `IRP_MJ_WRITE` and
+///   `IRP_MJ_FLUSH_BUFFERS`.
+/// * `Query` sends `IRP_MJ_QUERY_INFORMATION` for `FileBasicInformation` and
 ///   `FileStandardInformation`.
-/// * `SetBasic`: `FileBasicInformation`; `SetSize`: `FileEndOfFileInformation`
-///   (or `FileAllocationInformation`); `SetDelete`:
-///   `FileDispositionInformation`; `Rename`: `FileRenameInformation`; all
-///   `IRP_MJ_SET_INFORMATION` on the open file.
-/// * `List`: its own create on the directory (`FILE_LIST_DIRECTORY`,
-///   `FILE_DIRECTORY_FILE`, all sharing), `IRP_MN_QUERY_DIRECTORY` with
+/// * `SetBasic` (`FileBasicInformation`), `SetSize`
+///   (`FileEndOfFileInformation`, or `FileAllocationInformation`),
+///   `SetDelete` (`FileDispositionInformation`) and `Rename`
+///   (`FileRenameInformation`) all send `IRP_MJ_SET_INFORMATION` on the open
+///   file.
+/// * `List` opens the directory itself (`FILE_LIST_DIRECTORY`,
+///   `FILE_DIRECTORY_FILE`, all sharing), sends `IRP_MN_QUERY_DIRECTORY` with
 ///   `FileBothDirectoryInformation` from the initial query until
-///   `STATUS_NO_MORE_FILES`, close. `.` and `..` left out.
-/// * `Volume`: its own create on the root, `IRP_MJ_QUERY_VOLUME_INFORMATION`
-///   with `FileFsFullSizeInformation`, `FileFsVolumeInformation` and
-///   `FileFsAttributeInformation`, close.
+///   `STATUS_NO_MORE_FILES`, then closes it. The `.` and `..` entries are
+///   left out.
+/// * `Volume` opens the root itself, sends
+///   `IRP_MJ_QUERY_VOLUME_INFORMATION` for `FileFsFullSizeInformation`,
+///   `FileFsVolumeInformation` and `FileFsAttributeInformation`, then closes
+///   it.
 #[zbus::proxy(
     interface = "fr.ameleo.Host.Drive1",
     default_service = "fr.ameleo.Host",
@@ -690,11 +718,11 @@ pub trait Drive {
     gen_blocking = false
 )]
 pub trait HostDrive {
-    /// `IRP_MJ_CREATE`: `desired_access`, `file_attributes`, `share_access`,
-    /// `create_disposition` (`FILE_OPEN` 1, `FILE_CREATE` 2, `FILE_OPEN_IF`
-    /// 3...) and `create_options` (`FILE_DIRECTORY_FILE`...) as the guest app
-    /// gave them, for `DR_CREATE_REQ`. Returns `(status, file_id,
-    /// information)`, see [`drive::information`].
+    /// Sends `IRP_MJ_CREATE` (`DR_CREATE_REQ`) with `desired_access`,
+    /// `file_attributes`, `share_access`, `create_disposition` (`FILE_OPEN`
+    /// 1, `FILE_CREATE` 2, `FILE_OPEN_IF` 3...) and `create_options`
+    /// (`FILE_DIRECTORY_FILE`...) as the guest app gave them. Returns
+    /// `(status, file_id, information)`; see [`drive::information`].
     #[allow(clippy::too_many_arguments)]
     fn open(
         &self,
@@ -709,8 +737,9 @@ pub trait HostDrive {
 
     fn close(&self, drive_id: u32, file_id: u32) -> zbus::Result<u32>;
 
-    /// At most `length` bytes ([`drive::IO_MAX`]) from `offset`; fewer at
-    /// the end of the file, none past it.
+    /// Reads at most `length` bytes (and at most [`drive::IO_MAX`]) from
+    /// `offset`. Returns fewer bytes at the end of the file, and none past
+    /// it.
     fn read(
         &self,
         drive_id: u32,
@@ -719,8 +748,8 @@ pub trait HostDrive {
         length: u32,
     ) -> zbus::Result<(u32, Vec<u8>)>;
 
-    /// Writes `data` (at most [`drive::IO_MAX`] bytes) at `offset`; returns
-    /// the byte count written.
+    /// Writes `data` (at most [`drive::IO_MAX`] bytes) at `offset`. Returns
+    /// the number of bytes written.
     fn write(
         &self,
         drive_id: u32,
@@ -733,7 +762,8 @@ pub trait HostDrive {
 
     fn query(&self, drive_id: u32, file_id: u32) -> zbus::Result<(u32, drive::Entry)>;
 
-    /// `attributes` 0 and times 0 leave them as they are.
+    /// An `attributes` value of 0, or a time of 0, leaves that field
+    /// unchanged.
     fn set_basic(
         &self,
         drive_id: u32,
@@ -744,7 +774,8 @@ pub trait HostDrive {
         last_write_time: u64,
     ) -> zbus::Result<u32>;
 
-    /// The end of file, or with `allocation` the allocation size.
+    /// Sets the end of the file or, when `allocation` is true, the allocation
+    /// size.
     fn set_size(
         &self,
         drive_id: u32,
@@ -753,12 +784,13 @@ pub trait HostDrive {
         allocation: bool,
     ) -> zbus::Result<u32>;
 
-    /// Deleted when the client closes the file (`DeleteFile` true), or not
-    /// anymore. A non-empty directory answers `STATUS_DIRECTORY_NOT_EMPTY`.
+    /// Marks the file to be deleted when the client closes it
+    /// (`DeleteFile` true), or clears that mark. A non-empty directory
+    /// answers `STATUS_DIRECTORY_NOT_EMPTY`.
     fn set_delete(&self, drive_id: u32, file_id: u32, delete: bool) -> zbus::Result<u32>;
 
-    /// `new_path` from the drive root; `replace`: an existing one is
-    /// replaced.
+    /// Renames the file to `new_path`, relative to the drive root. When
+    /// `replace` is true, an existing file at `new_path` is replaced.
     fn rename(
         &self,
         drive_id: u32,
@@ -767,20 +799,20 @@ pub trait HostDrive {
         replace: bool,
     ) -> zbus::Result<u32>;
 
-    /// The entries of the directory `path`.
+    /// Lists the entries of the directory `path`.
     fn list(&self, drive_id: u32, path: &str) -> zbus::Result<(u32, Vec<drive::Entry>)>;
 
-    /// `(status, total_bytes, free_bytes, label, file_system)`: the client
-    /// volume's size, free space for the user, label and file system name
-    /// (`NTFS`).
+    /// Returns `(status, total_bytes, free_bytes, label, file_system)`: the
+    /// size of the client volume, the free space available to the user, the
+    /// volume label and the file system name (such as `NTFS`).
     fn volume(&self, drive_id: u32) -> zbus::Result<(u32, u64, u64, String, String)>;
 }
 
-/// Desktop tuning for remote sessions.
+/// Desktop settings for remote sessions.
 ///
 /// There is deliberately no monitor configuration here: resolution and
-/// layout belong to the display driver (EDID / hotplug), the agent never
-/// calls `SetDisplayConfig`.
+/// layout belong to the display driver (EDID and hotplug), and the agent
+/// never changes the display configuration itself.
 #[zbus::proxy(
     interface = "fr.ameleo.Agent.Display1",
     default_service = "fr.ameleo.Agent",
@@ -788,7 +820,8 @@ pub trait HostDrive {
     gen_blocking = false
 )]
 pub trait Display {
-    /// Persisted across reboots and re-applied at every logon.
+    /// The agent keeps these settings across reboots and applies them again
+    /// at every logon.
     fn set_effects(
         &self,
         disable_wallpaper: bool,
@@ -797,10 +830,11 @@ pub trait Display {
     ) -> zbus::Result<()>;
 }
 
-/// Host to guest file push, saved into the user Downloads folder.
+/// Files pushed from the host to the guest, saved in the user's Downloads
+/// folder.
 ///
-/// Flow control comes from the method replies: the host sends the next
-/// chunk once `Write` returned.
+/// The method replies provide flow control: the host sends the next chunk
+/// once `Write` has returned.
 #[zbus::proxy(
     interface = "fr.ameleo.Agent.FileTransfer1",
     default_service = "fr.ameleo.Agent",
@@ -808,13 +842,13 @@ pub trait Display {
     gen_blocking = false
 )]
 pub trait FileTransfer {
-    /// Returns the transfer id.
+    /// Starts a transfer and returns its id.
     fn start(&self, name: &str, size: u64) -> zbus::Result<u32>;
-    /// At most [`FILE_CHUNK_MAX`] bytes per call.
+    /// Writes the next chunk, at most [`FILE_CHUNK_MAX`] bytes.
     fn write(&self, id: u32, data: Vec<u8>) -> zbus::Result<()>;
-    /// Checks the size, keeps the file and opens the folder in Explorer.
-    /// Returns the final file name (it may carry a ` (n)` suffix).
+    /// Checks the size, keeps the file and shows the folder to the user.
+    /// Returns the final file name, which may carry a ` (n)` suffix.
     fn finish(&self, id: u32) -> zbus::Result<String>;
-    /// Deletes the partial file.
+    /// Cancels the transfer and deletes the partial file.
     fn cancel(&self, id: u32) -> zbus::Result<()>;
 }

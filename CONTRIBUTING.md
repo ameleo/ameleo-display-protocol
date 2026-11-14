@@ -1,17 +1,18 @@
 # Contributing
 
-Thank you for your interest. The interfaces are a contract between hosts and agents written by
-different people: before changing one, please open an issue to discuss it.
+Thank you for your interest. The interfaces are a contract between hosts and agents that
+different people write, so please open an issue to discuss a change to an interface before
+you start on it.
 
 This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md); report unacceptable behavior to
 opensource@ameleo.fr.
 
 ## Changing an interface
 
-Interfaces are versioned by name (`fr.ameleo.Agent.Mouse1`). A published interface never
-changes incompatibly: a new method, signal or property may be added when existing peers can
-ignore it; anything else is a new interface (`Mouse2`), and the old one stays until no agent
-or host needs it. Document each change in [CHANGELOG.md](CHANGELOG.md).
+Interfaces are versioned by name (`fr.ameleo.Agent.Mouse1`), and a published interface never
+changes incompatibly. You may add a method, signal or property when existing peers can safely
+ignore it. Any other change needs a new interface (`Mouse2`), and the old one stays until no
+agent or host needs it anymore. Document each change in [CHANGELOG.md](CHANGELOG.md).
 
 ## Developer Certificate of Origin
 
@@ -35,11 +36,29 @@ under those terms. Source files start with:
 
 ## Commits and pull requests
 
-- Write code comments, commit messages and pull request descriptions in English.
-- One topic per pull request; describe why the change is needed, what it does, and how it was
-  tested.
+- Write code comments, documentation, commit messages and pull request descriptions in plain
+  English, with full sentences.
+- Keep each pull request to one topic. Describe why the change is needed, what it does, and how
+  it was tested.
 - Keep `cargo fmt`, `cargo clippy` and `cargo test` clean; continuous integration runs them on
   Linux and Windows.
+
+Commit messages follow the usual Git conventions:
+
+- A subject line of about 50 characters, in the imperative mood ("Add a camera control",
+  "Fix the file list size"), without a trailing period.
+- A blank line, then a body wrapped at 72 characters that explains why the change is needed and
+  what it does.
+
+```
+Document the unit of PushFrame timestamps
+
+The documentation did not say which unit timestamp_us uses, and a host
+could reasonably send milliseconds. State that it is microseconds of
+capture time on the client.
+
+Signed-off-by: Your Name <you@example.com>
+```
 
 ## AI-assisted contributions
 
