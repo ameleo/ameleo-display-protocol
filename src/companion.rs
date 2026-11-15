@@ -105,7 +105,9 @@ pub trait Companion {
     /// connects, then on each change.
     fn session_locked(&self, locked: bool) -> zbus::Result<()>;
 
-    /// The host called `Agent1.Reset`: drop the remote client's state.
+    /// Drop the remote client's state. The agent calls it when the host calls `Agent1.Reset`,
+    /// and when a new D-Bus session with the host starts, since a new handshake replaces the
+    /// previous client.
     fn reset(&self) -> zbus::Result<()>;
 
     /// The agent is about to exit.
