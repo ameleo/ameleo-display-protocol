@@ -6,8 +6,10 @@ peer-to-peer D-Bus session on it and one versioned interface per feature. The cr
 interfaces as [zbus](https://crates.io/crates/zbus) proxies, documented method by method: the
 host uses them to call the agent, and the agent uses them to call the host back.
 
-Known agent: [ameleo-display-agent-windows](https://github.com/ameleo/ameleo-display-agent-windows),
-for Windows guests.
+Known agents, both under the GPL version 3:
+[ameleo-display-agent-win](https://github.com/ameleo/ameleo-display-agent-win) for Windows
+guests, and [ameleo-display-agent-linux](https://github.com/ameleo/ameleo-display-agent-linux)
+for Linux guests.
 
 ## QEMU setup
 
@@ -127,11 +129,23 @@ available in the guest.
   that the agent can refresh the guest's views.
 * **End.** `RemoveDrive`, `Agent1.Reset` and a new D-Bus session remove the drives.
 
+## Companion services
+
+On Windows, an agent can leave some `fr.ameleo.Agent.*` interfaces to a companion: another service
+in the guest, in its own process. The host never sees it. The agent keeps the port, announces the
+companion's interfaces in `Agent1.Channels`, and relays calls in both directions, unchanged. The
+`companion` module defines this guest-local link: the named pipe and its security descriptor, the
+`fr.ameleo.CompanionLink1` interface the agent serves, and the `fr.ameleo.Companion1` interface the
+companion serves.
+
+For example, ameleo-display-agent-win leaves features such as drives and printers to a proprietary
+companion service, which depends on this crate only.
+
 ## Usage
 
 ```toml
 [dependencies]
-ameleo-display-protocol = { git = "https://github.com/ameleo/ameleo-display-protocol", tag = "v0.1.0" }
+ameleo-display-protocol = { git = "https://github.com/ameleo/ameleo-display-protocol", tag = "v0.1.1" }
 ```
 
 The default `tokio` feature runs zbus on Tokio; the `async-io` feature runs it on its own
