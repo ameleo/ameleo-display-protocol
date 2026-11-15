@@ -2,6 +2,14 @@
 
 This file lists the changes in each release.
 
+## 0.1.1 — 2026-11-15
+
+- `companion`: the guest-local contract between the agent and a companion service that
+  implements more `fr.ameleo.Agent.*` interfaces in its own process. The named pipe and its
+  security descriptor, `fr.ameleo.CompanionLink1` (registration, clipboard formats, clipboard
+  owners) and `fr.ameleo.Companion1` (host and session state, reset, stop, clipboard). The host
+  never sees the companion; nothing changes between the host and the agent.
+
 ## 0.1.0 — 2026-11-14
 
 The first release. It defines the D-Bus contract between a QEMU `-display dbus` host and a guest
