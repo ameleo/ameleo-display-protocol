@@ -1,6 +1,6 @@
 [package]
 name = "ameleo-display-protocol"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "D-Bus interfaces between a QEMU -display dbus host and its guest agent"
@@ -10,9 +10,10 @@ keywords = ["qemu", "dbus", "guest-agent", "virtualization"]
 categories = ["api-bindings", "virtualization"]
 
 [dependencies]
-zbus = { version = "5", default-features = false, features = ["p2p"] }
+zbus = { version = "6", default-features = false, features = ["p2p", "proxy"] }
 
 [features]
 default = ["tokio"]
 tokio = ["zbus/tokio"]
-async-io = ["zbus/async-io"]
+# zbus's own runtime (zruntime), for a program without Tokio.
+default-rt = ["zbus/default-rt"]

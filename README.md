@@ -145,11 +145,13 @@ companion service, which depends on this crate only.
 
 ```toml
 [dependencies]
-ameleo-display-protocol = { git = "https://github.com/ameleo/ameleo-display-protocol", tag = "v0.1.1" }
+ameleo-display-protocol = { git = "https://github.com/ameleo/ameleo-display-protocol", tag = "v0.2.0" }
 ```
 
-The default `tokio` feature runs zbus on Tokio; the `async-io` feature runs it on its own
-executor.
+It uses zbus 6. The default `tokio` feature runs zbus on Tokio; the `default-rt` feature runs it on
+zbus's own runtime (zruntime), for a program without Tokio. The proxies are async only: zbus 6
+generates no blocking ones. A peer on zbus 5 and version 0.1 of this crate speaks the same D-Bus
+interfaces on the wire.
 
 ## License
 

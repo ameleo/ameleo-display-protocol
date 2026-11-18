@@ -147,8 +147,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[zbus::proxy(
     interface = "fr.ameleo.Agent1",
     default_service = "fr.ameleo.Agent",
-    default_path = "/fr/ameleo/Agent",
-    gen_blocking = false
+    default_path = "/fr/ameleo/Agent"
 )]
 pub trait Agent {
     /// The agent version.
@@ -178,8 +177,7 @@ pub trait Agent {
 #[zbus::proxy(
     interface = "fr.ameleo.Agent.Mouse1",
     default_service = "fr.ameleo.Agent",
-    default_path = "/fr/ameleo/Agent",
-    gen_blocking = false
+    default_path = "/fr/ameleo/Agent"
 )]
 pub trait Mouse {
     #[zbus(no_reply)]
@@ -205,8 +203,7 @@ pub trait Mouse {
 #[zbus::proxy(
     interface = "fr.ameleo.Agent.Clipboard1",
     default_service = "fr.ameleo.Agent",
-    default_path = "/fr/ameleo/Agent",
-    gen_blocking = false
+    default_path = "/fr/ameleo/Agent"
 )]
 pub trait Clipboard {
     /// Tells the agent that the host now owns the clipboard. When a guest app
@@ -240,8 +237,7 @@ pub trait Clipboard {
 #[zbus::proxy(
     interface = "fr.ameleo.Host.Clipboard1",
     default_service = "fr.ameleo.Host",
-    default_path = "/fr/ameleo/Host",
-    gen_blocking = false
+    default_path = "/fr/ameleo/Host"
 )]
 pub trait HostClipboard {
     fn request(&self, serial: u32, mimes: Vec<String>) -> zbus::Result<(String, Vec<u8>)>;
@@ -264,8 +260,7 @@ pub trait HostClipboard {
 #[zbus::proxy(
     interface = "fr.ameleo.Agent.FileClipboard1",
     default_service = "fr.ameleo.Agent",
-    default_path = "/fr/ameleo/Agent",
-    gen_blocking = false
+    default_path = "/fr/ameleo/Agent"
 )]
 pub trait FileClipboard {
     /// Freezes the current clipboard content under `clip_data_id`: its file
@@ -289,8 +284,7 @@ pub trait FileClipboard {
 #[zbus::proxy(
     interface = "fr.ameleo.Host.FileClipboard1",
     default_service = "fr.ameleo.Host",
-    default_path = "/fr/ameleo/Host",
-    gen_blocking = false
+    default_path = "/fr/ameleo/Host"
 )]
 pub trait HostFileClipboard {
     fn lock_clip_data(&self, clip_data_id: u32) -> zbus::Result<()>;
@@ -348,8 +342,7 @@ pub mod camera {
 #[zbus::proxy(
     interface = "fr.ameleo.Agent.Camera1",
     default_service = "fr.ameleo.Agent",
-    default_path = "/fr/ameleo/Agent",
-    gen_blocking = false
+    default_path = "/fr/ameleo/Agent"
 )]
 pub trait Camera {
     /// `formats` lists the H.264 formats as
@@ -488,8 +481,7 @@ pub mod printer {
 #[zbus::proxy(
     interface = "fr.ameleo.Agent.Printer1",
     default_service = "fr.ameleo.Agent",
-    default_path = "/fr/ameleo/Agent",
-    gen_blocking = false
+    default_path = "/fr/ameleo/Agent"
 )]
 pub trait Printer {
     /// `name` is the name shown in the guest. When `is_default` is true, the
@@ -541,8 +533,7 @@ pub trait Printer {
 #[zbus::proxy(
     interface = "fr.ameleo.Host.Printer1",
     default_service = "fr.ameleo.Host",
-    default_path = "/fr/ameleo/Host",
-    gen_blocking = false
+    default_path = "/fr/ameleo/Host"
 )]
 pub trait HostPrinter {
     /// `document_format` is the job's MIME type, `application/oxps`: the host
@@ -659,8 +650,7 @@ pub mod drive {
 #[zbus::proxy(
     interface = "fr.ameleo.Agent.Drive1",
     default_service = "fr.ameleo.Agent",
-    default_path = "/fr/ameleo/Agent",
-    gen_blocking = false
+    default_path = "/fr/ameleo/Agent"
 )]
 pub trait Drive {
     /// `name` is the client's name for the drive (the RDPDR
@@ -716,8 +706,7 @@ pub trait Drive {
 #[zbus::proxy(
     interface = "fr.ameleo.Host.Drive1",
     default_service = "fr.ameleo.Host",
-    default_path = "/fr/ameleo/Host",
-    gen_blocking = false
+    default_path = "/fr/ameleo/Host"
 )]
 pub trait HostDrive {
     /// Sends `IRP_MJ_CREATE` (`DR_CREATE_REQ`) with `desired_access`,
@@ -818,8 +807,7 @@ pub trait HostDrive {
 #[zbus::proxy(
     interface = "fr.ameleo.Agent.Display1",
     default_service = "fr.ameleo.Agent",
-    default_path = "/fr/ameleo/Agent",
-    gen_blocking = false
+    default_path = "/fr/ameleo/Agent"
 )]
 pub trait Display {
     /// The agent keeps these settings across reboots and applies them again
@@ -840,8 +828,7 @@ pub trait Display {
 #[zbus::proxy(
     interface = "fr.ameleo.Agent.FileTransfer1",
     default_service = "fr.ameleo.Agent",
-    default_path = "/fr/ameleo/Agent",
-    gen_blocking = false
+    default_path = "/fr/ameleo/Agent"
 )]
 pub trait FileTransfer {
     /// Starts a transfer and returns its id.

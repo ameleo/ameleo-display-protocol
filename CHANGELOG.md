@@ -2,6 +2,13 @@
 
 This file lists the changes in each release.
 
+## 0.2.0 — 2026-11-18
+
+- zbus 6. The D-Bus interfaces do not change: a host or an agent on version 0.1 (zbus 5) still
+  speaks to one on 0.2.
+- The `async-io` feature becomes `default-rt`, zbus 6's own runtime (zruntime).
+- The proxies are async only, as zbus 6 generates no blocking ones.
+
 ## 0.1.1 — 2026-11-15
 
 - `companion`: the guest-local contract between the agent and a companion service that

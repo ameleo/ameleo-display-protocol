@@ -63,8 +63,7 @@ pub mod iface {
 #[zbus::proxy(
     interface = "fr.ameleo.CompanionLink1",
     default_service = "fr.ameleo.Agent",
-    default_path = "/fr/ameleo/CompanionLink",
-    gen_blocking = false
+    default_path = "/fr/ameleo/CompanionLink"
 )]
 pub trait CompanionLink {
     /// Registers the companion. `agent`: the `fr.ameleo.Agent.*` interfaces it serves at
@@ -94,8 +93,7 @@ pub trait CompanionLink {
 #[zbus::proxy(
     interface = "fr.ameleo.Companion1",
     default_service = "fr.ameleo.Companion",
-    default_path = "/fr/ameleo/Companion",
-    gen_blocking = false
+    default_path = "/fr/ameleo/Companion"
 )]
 pub trait Companion {
     /// Whether a host is connected. Called when the companion connects, then on each change.
