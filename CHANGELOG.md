@@ -2,7 +2,7 @@
 
 This file lists the changes in each release.
 
-## Unreleased
+## 0.3.0 — 2026-11-27
 
 - `fr.ameleo.Agent.Consent1` / `fr.ameleo.Host.Consent1`: the signed-in user's consent, asked on
   their desktop, before someone else views the session or takes control of it; an indicator and
