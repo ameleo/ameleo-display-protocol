@@ -2,7 +2,7 @@
 
 This file lists the changes in each release.
 
-## 0.1.2 — Unreleased
+## 0.1.2 — 2026-11-27
 
 - `fr.ameleo.Agent.Consent1` / `fr.ameleo.Host.Consent1`, as in 0.3 for zbus 6: the signed-in
   user's consent, asked on their desktop, before someone else views the session or takes control
