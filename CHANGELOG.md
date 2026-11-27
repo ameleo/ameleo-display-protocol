@@ -2,6 +2,13 @@
 
 This file lists the changes in each release.
 
+## 0.1.2 — Unreleased
+
+- `fr.ameleo.Agent.Consent1` / `fr.ameleo.Host.Consent1`, as in 0.3 for zbus 6: the signed-in
+  user's consent, asked on their desktop, before someone else views the session or takes control
+  of it; an indicator and a way to stop while it lasts; consents end with the session's lock or a
+  change of user. For the agents still on zbus 5; the interface is the same on the wire.
+
 ## 0.1.1 — 2026-11-15
 
 - `companion`: the guest-local contract between the agent and a companion service that
