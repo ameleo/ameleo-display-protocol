@@ -59,6 +59,8 @@ pub mod iface {
     pub const HOST_FILE_CLIPBOARD: &str = "fr.ameleo.Host.FileClipboard1";
     pub const DRIVE: &str = "fr.ameleo.Agent.Drive1";
     pub const HOST_DRIVE: &str = "fr.ameleo.Host.Drive1";
+    pub const CONSENT: &str = "fr.ameleo.Agent.Consent1";
+    pub const HOST_CONSENT: &str = "fr.ameleo.Host.Consent1";
 }
 
 /// Clipboard MIME types that the agent understands.
@@ -840,4 +842,79 @@ pub trait FileTransfer {
     fn finish(&self, id: u32) -> zbus::Result<String>;
     /// Cancels the transfer and deletes the partial file.
     fn cancel(&self, id: u32) -> zbus::Result<()>;
+}
+
+/// What the host asks the user's consent for: [`ConsentProxy::ask`]'s `kind`.
+pub mod consent {
+    /// Someone else sees the guest's screens (and hears its sound), and nothing more.
+    pub const VIEW: u32 = 1;
+    /// Someone else's keyboard and pointer act in the guest, besides the user's own.
+    pub const CONTROL: u32 = 2;
+    /// How long the user has to answer: past it, the agent answers no.
+    pub const TIMEOUT_SECS: u32 = 30;
+    /// The longest `who` the host sends, in characters; the agent cuts a longer one.
+    pub const WHO_MAX: usize = 128;
+}
+
+/// The consent of the user signed in to the guest's session, before someone
+/// else watches it or takes control of it (shadowing, remote assistance).
+///
+/// Only the agent asks, on the user's own desktop: the host never decides
+/// for the user, and the remote client is not where consent is given.
+///
+/// 1. The host calls `Ask(id, kind, who)`. `id` names the request; the host
+///    chooses it, unique for the D-Bus session. `kind` is one of the
+///    [`consent`] kinds; `who` names the person asking, as the host knows
+///    them (at most [`consent::WHO_MAX`] characters, shown as plain text).
+/// 2. The agent shows the request on the user's desktop and answers once,
+///    with `fr.ameleo.Host.Consent1.Answered(id, granted)`. It answers false
+///    at once when no user is signed in, the session is locked, or the
+///    logon screen is shown; false to a request that comes while another is
+///    shown; and false after [`consent::TIMEOUT_SECS`] without an answer.
+///    The request says it comes from remote access, and its default is no:
+///    no key typed before it appeared answers it.
+/// 3. While a consent it granted lasts, the agent shows the user who sees
+///    or controls their session, with a way to stop it. When the user stops
+///    it, the agent calls `fr.ameleo.Host.Consent1.Stopped(id)`.
+/// 4. The host calls `End(id)` when what `id` granted is over (the person
+///    left, or the host ended it), or to withdraw a request not answered
+///    yet. The agent then removes what it shows for `id`, and sends nothing
+///    more for it.
+///
+/// The host asks `CONTROL` only for a person whose `VIEW` consent lasts.
+///
+/// A consent belongs to the user who gave it, in their session: when the
+/// session locks, its user signs out, or another user's session takes the
+/// screen, the agent calls `Stopped` for every consent it granted. A new
+/// D-Bus session drops them all, on both sides, without a call. Stopping a
+/// view consent stops the control consent granted to the same person too:
+/// the host ends both.
+///
+/// The agent lists `fr.ameleo.Agent.Consent1` in `Agent1.Channels` when it
+/// implements it; the host asks nothing of an agent that does not.
+#[zbus::proxy(
+    interface = "fr.ameleo.Agent.Consent1",
+    default_service = "fr.ameleo.Agent",
+    default_path = "/fr/ameleo/Agent"
+)]
+pub trait Consent {
+    /// Asks the signed-in user whether `who` may do `kind`. Returns at once;
+    /// the answer comes through `fr.ameleo.Host.Consent1.Answered`.
+    fn ask(&self, id: u32, kind: u32, who: &str) -> zbus::Result<()>;
+    /// What `id` granted is over, or its request is withdrawn.
+    fn end(&self, id: u32) -> zbus::Result<()>;
+}
+
+/// The host side of [`ConsentProxy`]: the user's answers, and their stops.
+#[zbus::proxy(
+    interface = "fr.ameleo.Host.Consent1",
+    default_service = "fr.ameleo.Host",
+    default_path = "/fr/ameleo/Host"
+)]
+pub trait HostConsent {
+    /// The answer to `Ask(id)`, sent once.
+    fn answered(&self, id: u32, granted: bool) -> zbus::Result<()>;
+    /// The user stopped what `id` granted, or it no longer holds (the
+    /// session locked, or its user changed).
+    fn stopped(&self, id: u32) -> zbus::Result<()>;
 }

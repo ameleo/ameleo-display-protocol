@@ -2,6 +2,12 @@
 
 This file lists the changes in each release.
 
+## Unreleased
+
+- `fr.ameleo.Agent.Consent1` / `fr.ameleo.Host.Consent1`: the signed-in user's consent, asked on
+  their desktop, before someone else views the session or takes control of it; an indicator and
+  a way to stop while it lasts; consents end with the session's lock or a change of user.
+
 ## 0.2.0 — 2026-11-18
 
 - zbus 6. The D-Bus interfaces do not change: a host or an agent on version 0.1 (zbus 5) still
