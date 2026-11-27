@@ -42,6 +42,7 @@ The agent exports these interfaces at `/fr/ameleo/Agent`:
 | `fr.ameleo.Agent.Camera1` | `AddCamera(id, name, formats)`, `RemoveCamera(id)`, `PushFrame(id, timestamp_us, h264)`; signals `StreamRequested`, `StreamStopped` and `KeyFrameNeeded` |
 | `fr.ameleo.Agent.Printer1` | `AddPrinter(id, name, is_default, capabilities, default_ticket)`, `RemovePrinter(id)`, `DocumentPropertiesDone(request_id, print_ticket, cancelled)` |
 | `fr.ameleo.Agent.Drive1` | Client drives; see [Drives](#drives-ms-rdpefs) |
+| `fr.ameleo.Agent.Consent1` | `Ask(id, kind, who)`, `End(id)`: the signed-in user's consent before someone else views or controls the session; see [Consent](#consent) |
 
 The host exports these interfaces at `/fr/ameleo/Host`:
 
@@ -128,6 +129,20 @@ available in the guest.
 * **Client changes.** The host calls `Changed` (after a `NotifyChangeDirectory` on the root) so
   that the agent can refresh the guest's views.
 * **End.** `RemoveDrive`, `Agent1.Reset` and a new D-Bus session remove the drives.
+
+## Consent
+
+Before someone else views the session (`VIEW`) or takes control of it (`CONTROL`), the host asks
+the user signed in to the guest, through the agent, on their own desktop: the host never decides
+for them. The agent answers once with `fr.ameleo.Host.Consent1.Answered(id, granted)`: no at
+once when nobody is signed in or the session is locked, or while another request is shown; no
+after 30 seconds without an answer. The request says it comes from remote access, and its
+default is no: a key typed before it appeared does not answer it. The host asks `CONTROL` only
+for a person who has `VIEW`.
+While a consent lasts, the agent shows who views or controls the session, and a way to stop it,
+which calls `fr.ameleo.Host.Consent1.Stopped(id)`. A consent ends with the session's lock, its
+user's sign-out or a switch to another user: the agent calls `Stopped` for each. The host calls
+`End(id)` when it is over on its side, or to withdraw an unanswered request.
 
 ## Companion services
 
