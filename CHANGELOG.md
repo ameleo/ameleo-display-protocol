@@ -2,7 +2,7 @@
 
 This file lists the changes in each release.
 
-## Unreleased
+## 0.4.0 — 2026-11-28
 
 - `print_link`: the guest-local link between a Windows agent and its Print Support App (the MSIX
   package that holds the virtual printers of the client printers): the named pipe, the package the
