@@ -2,6 +2,14 @@
 
 This file lists the changes in each release.
 
+## Unreleased
+
+- `print_link`: the guest-local link between a Windows agent and its Print Support App (the MSIX
+  package that holds the virtual printers of the client printers): the named pipe, the package the
+  agent accepts and the messages.
+- The `companion` module is removed: no agent relays interfaces to a companion service any more.
+  The D-Bus interfaces between the host and the agent do not change.
+
 ## 0.3.0 — 2026-11-27
 
 - `fr.ameleo.Agent.Consent1` / `fr.ameleo.Host.Consent1`: the signed-in user's consent, asked on

@@ -43,7 +43,7 @@ pub const AGENT_PATH: &str = "/fr/ameleo/Agent";
 /// The object path where the host exports all its interfaces.
 pub const HOST_PATH: &str = "/fr/ameleo/Host";
 
-pub mod companion;
+pub mod print_link;
 
 pub mod iface {
     pub const AGENT: &str = "fr.ameleo.Agent1";

@@ -144,23 +144,20 @@ which calls `fr.ameleo.Host.Consent1.Stopped(id)`. A consent ends with the sessi
 user's sign-out or a switch to another user: the agent calls `Stopped` for each. The host calls
 `End(id)` when it is over on its side, or to withdraw an unanswered request.
 
-## Companion services
+## Windows print link
 
-On Windows, an agent can leave some `fr.ameleo.Agent.*` interfaces to a companion: another service
-in the guest, in its own process. The host never sees it. The agent keeps the port, announces the
-companion's interfaces in `Agent1.Channels`, and relays calls in both directions, unchanged. The
-`companion` module defines this guest-local link: the named pipe and its security descriptor, the
-`fr.ameleo.CompanionLink1` interface the agent serves, and the `fr.ameleo.Companion1` interface the
-companion serves.
-
-For example, ameleo-display-agent-win leaves features such as drives and printers to a proprietary
-companion service, which depends on this crate only.
+On Windows, the client printers are virtual printers of a Print Support App, an MSIX package, on
+the inbox Microsoft Virtual Print Class Driver, so that they work under Windows protected print.
+The app is a separate program in the guest, and the host never sees it. The `print_link` module
+defines its guest-local link with the agent: the named pipe, the package the agent accepts, and
+the messages (install and remove the user's virtual printers, print a job, show the client
+driver's printing preferences).
 
 ## Usage
 
 ```toml
 [dependencies]
-ameleo-display-protocol = { git = "https://github.com/ameleo/ameleo-display-protocol", tag = "v0.2.0" }
+ameleo-display-protocol = { git = "https://github.com/ameleo/ameleo-display-protocol", tag = "v0.4.0" }
 ```
 
 It uses zbus 6. The default `tokio` feature runs zbus on Tokio; the `default-rt` feature runs it on
